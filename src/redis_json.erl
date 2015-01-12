@@ -1,4 +1,4 @@
--module(json).
+-module(redis_json).
 -export([test/1,extract/2, replace/3]).
 
 -record(stack,{values}).

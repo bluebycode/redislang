@@ -10,9 +10,9 @@
 
 -behaviour(gen_server).
 
--export([start_link/2,start_link/3,start/2,start/3,stop/1]).
+-export([start_link/2,start_link/3,start/2,start/3,stop/1,terminate/2]).
 
--export([hget/3]).
+-export([hget/3,test/0]).
 
 -define(DEBUG(Format, Args),io:format(Format, Args)).
 
@@ -42,6 +42,7 @@ start(Address, Port, Options)->
 
 %% @doc Disconnect the socket and stop the process.
 stop(Pid) ->
+	?DEBUG("***** stopping ~p ~n",[""]),
 	gen_server:call(Pid, stop, infinity).
 
 %% @doc Create a linked process to talk with the redis node server.
@@ -53,7 +54,6 @@ start_link(Address, Port) ->
 start_link(Address, Port, Options) when is_list(Options) ->
 		?DEBUG("***** redis startlink ~p ~n",[""]),
     gen_server:start_link(?MODULE, [Address, Port, Options], []).
-
 
 %% @doc Send by tcp connection every argument of redis command recursively given the list: 
 % establishing the second part of redis protocol: 
@@ -144,19 +144,18 @@ parse_response(Data)->
 %% @end
 %%--------------------------------------------------------------------
 hget(Pid, Key, Hash) -> 
-	?DEBUG("***** hget: ~p = ~p = ~p ~n",[Pid,Key,Hash]),
 	gen_server:call(Pid, {hget, [Key,[Hash]]}).
 
 %% @private
 %% Connects if disconnected.
-connect(#state{host=Host, port=Port, socket=_Socket}) ->
-	?DEBUG("***** connecting...~p ~n",[""]),
-	case gen_tcp:connect(Host, Port, [binary, {active, once}, {packet, raw},{reuseaddr, true}]) of
+connect(State = #state{host=Host, port=Port}) ->
+	?DEBUG("***** Redis::connecting...~p ~n",[""]),
+	case gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw},{reuseaddr, true}]) of
     {ok, _Socket} ->
-    	?DEBUG("***** connected? ~p ~n",[_Socket]),
-    	{ok, #state{socket=_Socket}};
+    	?DEBUG("***** Redis::connected? ~p ~n",[_Socket]),
+    	{ok, State#state{socket=_Socket}};
     Error ->
-    	?DEBUG("***** connected? ~p ~n",["ERROR"]),
+    	?DEBUG("***** Redis::error connected? ~p ~n",[Error]),
       Error
     end.
 
@@ -165,8 +164,10 @@ connect(#state{host=Host, port=Port, socket=_Socket}) ->
 %% ====================================================================
 
 %% @doc callback triggered by generic server on termination
-terminate(_, _)->
-	ok.
+
+terminate(Reason, State)->
+	?DEBUG("***** TERMINATE CON TOMATE ~p ~n",[Reason]),
+	{stop, Reason, State}.
 
 %% @doc callback triggered by generic server on code change
 %% No changes!! :D
@@ -177,9 +178,10 @@ code_change(PreviousVersion, State, Extra)->
 %% @private
 init([Address, Port, Options])->
 	?DEBUG("***** connect~p ~n",[Options]),
+	process_flag(trap_exit, true),
 	case connect(#state{host=Address, port=Port}) of
-			{ok, State} -> {ok, State};
-      {error, _Reason} -> {error, _Reason}
+		{ok, State} -> {ok, State};
+    {error, _Reason} -> {error, _Reason}
   end.
 
 %% @doc callback triggered by generic server on tcp reception data (from redis protocol communication: the only one expected)
@@ -187,14 +189,28 @@ init([Address, Port, Options])->
 %%
 %% @spec ({tcp, _, Data}, State::record(#state) ->
 %%   {noreply, State};
-handle_info({tcp, _, Data}, State = #state{socket=_Socket,source=_From}) ->
+handle_info({tcp, _SocketRequest, Data}, State = #state{host=Host, port=Port, socket=_Socket, source=_From}) ->
+	?DEBUG("***** handle_info:tcp: ~p,~p (~p ? ~p)~n",[Data,State,_SocketRequest,_Socket]),
 	_Response = handle_next(_Socket, Data),
 	_Reply = parse_response(_Response),
 	gen_server:reply(_From, _Reply),
 	{noreply, State};
 
-handle_info(_Unknown, State)->
-	{noreply, State}.
+handle_info({tcp_closed, _Socket}, S) ->
+	?DEBUG("unexpected closed: ~p~n", [S]),
+	{stop, normal, S};
+
+handle_info({tcp_error, _Socket, _Error}, S) ->
+	?DEBUG("unexpected error: ~p~n", [_Error]),
+	{stop, normal, S};
+
+handle_info({'EXIT', Pid, Reason}, State) ->
+	?DEBUG("unexpected EXIT: ~p~n", [Reason]),
+  {noreply, State};
+
+handle_info(E, S) ->
+	?DEBUG("unexpected: ~p~n", [E]),
+	{noreply, S}.
 
 handle_cast(Message, State) ->
 	?DEBUG("***** handle_cast ~p ~n",[Message]),
@@ -207,7 +223,23 @@ handle_cast(Message, State) ->
 %%
 %% @spec ({ Cmd, Args }, _From, State ->
 %%   {noreply, State#state{source=ClientReference}}. | error
-handle_call({ Cmd, Args }, _From, State = #state{socket=_Socket}) ->
+handle_call({ Cmd, Args }, _From, State = #state{host=Host, port=Port, socket=_Socket, source=_NoFromDefined}) ->
+	?DEBUG("***** handle_call:cmd: [~p:~p] ~p (~p ? ~p)~n",[Cmd,Args,State,_NoFromDefined,_From]),
 	ok = sendCommand(_Socket, atom_to_list(Cmd), Args),
-	{noreply, State#state{source=_From}}.
+	?DEBUG("***** sent command: ~p ~n",[State#state{source=_From}]),
+	{noreply, State#state{source=_From}};
+
+handle_call(Call, _From, State) ->
+	?DEBUG("***** handle_call:cmd: [~p:~p] ~p ~n",[Call,_From,State]),
+	{noreply, State}.
+
+test()->
+	{ok, Pid}=redis:start_link("192.168.56.105", 22121),
+	erlang:process_info(Pid),
+	{ok, {string, Value}} = redis:hget(Pid, "uid:2", "net.omnidrone.savage.account.Account",2#10),
+	io:format("VALUE=(~p) ~p~n", [Pid,Value]).
+	%Ret = redis:hget(Pid, "uid:2", "net.omnidrone.savage.account.Account").
+
+
+
 
