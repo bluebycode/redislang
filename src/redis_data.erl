@@ -1,6 +1,6 @@
 %%%----------------------------------------------------------------------
 %%% File    : redis_data.erl
-%%% Author  : Alvaro Lopez Sanchez <alvaro.lopez@omnidrone.net>
+%%% Author  : <vrandkode@gmail.com>
 %%% Purpose : Redis data types, handling data functions.
 %%% Created : 7 Jan 2015
 %%%

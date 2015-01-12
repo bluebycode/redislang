@@ -1,6 +1,6 @@
 %%%----------------------------------------------------------------------
 %%% File    : redis_app.erl
-%%% Author  : Alvaro Lopez Sanchez <alvaro.lopez@omnidrone.net>
+%%% Author  : <vrandkode@gmail.com>
 %%% Purpose : Redis socket client - Application
 %%% Created : 12 Jan 2015
 %%%

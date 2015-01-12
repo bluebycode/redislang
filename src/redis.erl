@@ -1,20 +1,20 @@
 %%%----------------------------------------------------------------------
 %%% File    : redis.erl
-%%% Author  : Alvaro Lopez Sanchez <alvaro.lopez@omnidrone.net>
+%%% Author  : <vrandkode@gmail.com>
 %%% Purpose : Redis socket client
 %%% Created : 7 Jan 2015
 %%%
 
 -module(redis).
--author('alvaro.lopez@omnidrone.net').
+-author('vrandkode@gmail.com').
 
 -behaviour(gen_server).
-
--include("logger.hrl").
 
 -export([start_link/2,start_link/3,start/2,start/3,stop/1]).
 
 -export([hget/3]).
+
+-define(DEBUG(Format, Args),io:format(Format, Args)).
 
 % call backs exports
 -export([init/1, 
