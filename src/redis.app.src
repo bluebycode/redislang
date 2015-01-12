@@ -1,0 +1,11 @@
+{application, redis,
+ [{description,  "Redis client"},
+  {vsn,          "0.2"},
+  {modules,      []},
+  {registered,   []},
+  {applications, [kernel, stdlib]},
+  {mod,          {redis_app,[]}}]}.
+%% Local Variables:
+%% mode: erlang
+%% End:
+%% vim: set filetype=erlang tabstop=8:
